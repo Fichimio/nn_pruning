@@ -732,7 +732,7 @@ class ModelPatchingCoordinator:
             gelu_patch = False
 
         patcher = LinearModelPatcher(module_patchers, model_structure=self.model_structure)
-
+        # print(patcher.patterns)
         patcher.patch(model)
         model = model.to(device)  # TODO: change this by making sure the mask_scores are located at the right place.
 

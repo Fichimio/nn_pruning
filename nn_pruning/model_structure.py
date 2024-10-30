@@ -1,6 +1,6 @@
 from typing import Dict
 import re
-from transformers import BertConfig, BartConfig, T5Config
+from transformers import BertConfig, BartConfig, T5Config, Qwen2Config
 
 class ModelStructure:
     PATTERN_PREFIX: str = ""
@@ -102,7 +102,7 @@ class BartStructure(ModelStructure):
     )
 
 class T5Structure(ModelStructure):
-    PATTERN_PREFIX = "(en|de)coder.block.[0-9]+.layer.[0-9]+."
+    PATTERN_PREFIX = "transformer.(en|de)coder.block.[0-9]+.layer.[0-9]+."
     LAYER_PATTERNS = dict(
         query="SelfAttention.q",
         key="SelfAttention.k",
@@ -122,20 +122,68 @@ class T5Structure(ModelStructure):
         hidden_size="d_model",
         intermediate_size="d_ff",
         num_hidden_layers="num_layers",
-        num_attention_heads="num_heads",
+        num_attention_heads="n_heads",
         attention_head_size="key_value_proj_dim",
     )
+
+class GPT2Structure(ModelStructure):
+    PATTERN_PREFIX = "transformer.h.[0-9]+."
+    LAYER_PATTERNS = dict(
+        # qkv_project = "attn.c_attn",
+        query="attn.c_attn",
+        # key="attention.self.key",
+        # value="attention.self.value",
+        att_dense="attn.c_proj",
+        interm_dense="mlp.c_fc",
+        output_dense="mlp.c_proj",
+    )
+    ATTENTION_PREFIX = ("attn",)
+    ATTENTION_LAYERS = ('query',)
+    MHA_LAYERS = ATTENTION_LAYERS + ("att_dense", )
+    NAME_CONFIG = dict(
+        hidden_size="d_model",
+        intermediate_size="d_ff",
+        num_hidden_layers="num_layers",
+        num_attention_heads="n_heads",
+        attention_head_size="key_value_proj_dim",
+    )
+    
+class Qwen2Structure(ModelStructure):
+    PATTERN_PREFIX = "model.layers.[0-9]+."
+    LAYER_PATTERNS = dict(
+        # qkv_project = "attn.c_attn",
+        query="self_attn.q_proj",
+        key="self_attn.k_proj",
+        value="self_attn.v_proj",
+        att_dense="self_attn.o_proj",
+        interm_dense="mlp.up_proj",
+        output_dense="mlp.down_proj",
+    )
+    ATTENTION_PREFIX = ("self_attn",)
+    ATTENTION_LAYERS = ('query','key','value')
+    MHA_LAYERS = ATTENTION_LAYERS + ("att_dense", )
+    NAME_CONFIG = dict(
+        hidden_size="hidden_size",
+        intermediate_size="intermediate_size",
+        num_hidden_layers="num_hidden_layers",
+        num_attention_heads="num_attention_heads",
+        attention_head_size="key_value_proj_dim",
+    )
+
 
 config2struct = {
     BertConfig: BertStructure,
     BartConfig: BartStructure,
     T5Config: T5Structure,
+    Qwen2Config:Qwen2Structure
 }
 
 name2struct = {
     "bert": BertStructure,
     "bart": BartStructure,
     "t5": T5Structure,
+    "gpt2":GPT2Structure,
+    "qwen2":Qwen2Structure
 }
 
 class ModelStructureNotFound(RuntimeError):

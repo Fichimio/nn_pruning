@@ -308,6 +308,13 @@ class XP:
     def train(self):
         # Training
         self.trainer.train()
+        # from .question_answering.qa_utils import replace_linear_with_conv1d
+        # from transformers.models.gpt2 import GPT2ForQuestionAnswering
+        # if isinstance(self.trainer.model,GPT2ForQuestionAnswering):
+        #     replace_linear_with_conv1d(self.trainer.model)
+        #     print(self.trainer.model)
+        # import IPython
+        # IPython.embed()
         self.trainer.save_model()  # Saves the tokenizer too for easy upload
 
     def evaluate(self):

@@ -20,12 +20,60 @@ import json
 import logging
 import os
 from typing import Optional, Tuple
-
+from transformers.pytorch_utils import Conv1D
+from nn_pruning.modules.masked_nn import MaskedLinear
+import torch
 import numpy as np
 from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
 
+def replace_conv1d_with_linear(model):
+    for name, module in model.named_modules():
+        if isinstance(module, Conv1D):
+            # 获取原始Conv1D层的参数
+            weight = module.weight
+            bias = module.bias
+            
+            # 创建一个新的Linear层
+            linear_layer = torch.nn.Linear(weight.size(0), weight.size(1), bias=True)
+            
+            # 复制权重和偏置
+            with torch.no_grad():
+                linear_layer.weight.copy_(weight.t())  # 注意这里需要转置
+                linear_layer.bias.copy_(bias)
+            
+            # 替换模型中的Conv1D层
+            parent_module, child_name = get_parent_module_and_child_name(model, name)
+            setattr(parent_module, child_name, linear_layer)
+            
+def replace_linear_with_conv1d(model):
+    device = model.device
+    for name, module in model.named_modules():
+        if isinstance(module, MaskedLinear) and name != 'qa_outputs':
+            # 获取原始Linear层的参数
+            weight = module.weight
+            bias = module.bias
+            
+            # 创建一个新的Conv1D层
+            conv1d_layer = Conv1D(weight.size(0), weight.size(1))  # 注意这里的顺序
+            
+            # 复制权重和偏置
+            with torch.no_grad():
+                conv1d_layer.weight.copy_(weight.t())  # 转置以匹配Conv1D的存储方式
+                conv1d_layer.bias.copy_(bias)
+            
+            # 替换模型中的Linear层
+            parent_module, child_name = get_parent_module_and_child_name(model, name)
+            setattr(parent_module, child_name, conv1d_layer)
+    model.to(device)
+
+def get_parent_module_and_child_name(model, full_name):
+    parts = full_name.split('.')
+    parent = model
+    for part in parts[:-1]:
+        parent = getattr(parent, part)
+    return parent, parts[-1]
 
 def postprocess_qa_predictions(
     examples,

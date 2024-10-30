@@ -83,7 +83,6 @@ COMMON_TYPICAL_PARAMETERS = {
     "attention_output_with_dense": 0,
     "layer_norm_patch_steps": 50000,
     "gelu_patch_steps": 50000,
-    "eval_with_current_patch_params ": 0,
     "linear_min_parameters": 0,
 }
 
@@ -121,9 +120,14 @@ task2teacher = {
 @click.option("--json-path", type=click.Path(resolve_path=True), help="Path to a parameters json file")
 @click.option("--model-name-or-path", default="bert-base-uncased", type=click.Choice(["bert-base-uncased",
                                                                                       "bert-large-uncased",
+                                                                                      "bert-base-cased-finetuned-mrpc",
+                                                                                      "textattack/bert-base-uncased-MRPC",
+                                                                                      "yoshitomo-matsubara/bert-large-uncased-mrpc",
                                                                                       "facebook/bart-base",
                                                                                       "t5-small",
-                                                                                      "t5-base"]))
+                                                                                      "t5-base",
+                                                                                      "Qwen/Qwen2-1.5B",
+                                                                                      "gpt2"]))
 @click.option("--teacher", default=None, type=str, help = "'auto' for auto selection, or teacher name or path (default is no teacher)")
 @click.option("--per-device-train-batch-size", default=16, type=int)
 @click.option("--regularization-final-lambda", default=10, type=float)

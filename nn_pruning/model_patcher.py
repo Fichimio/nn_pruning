@@ -62,6 +62,7 @@ class ModelPatcher:
         for k, v in model.named_modules():
             modules[k] = v
             match, patch_info = self.pattern_match(k)
+            # print(k,match,patch_info)
             if match and self.is_patchable(k, v, raiseError=True):
                 parts = k.split(".")
                 father_module_name = ".".join(parts[:-1])

@@ -6,13 +6,13 @@ from torch.quantization import (
     get_default_qat_qconfig,
     get_default_qconfig,
 )
-from torch.quantization.quantize_fx import (
+from torch.ao.quantization.quantize_fx import (
     convert_fx,
     fuse_fx,
     prepare_fx,
     prepare_qat_fx,
 )
-from transformers.modeling_fx_utils import symbolic_trace
+from transformers.utils.fx import symbolic_trace
 
 from .quantization_config import create_qconfig
 
@@ -113,10 +113,14 @@ def _prepare(
     else:
         model.eval()
 
+    # traced = symbolic_trace(
+    #     model, input_names=input_names, batch_size=batch_size, sequence_length=sequence_length, num_choices=num_choices
+    # )
     traced = symbolic_trace(
-        model, input_names=input_names, batch_size=batch_size, sequence_length=sequence_length, num_choices=num_choices
+        model, input_names=input_names,
     )
-
+    
+    
     change_attention_mask_value(traced)
     prepare_custom_config_dict = {"preserved_attributes": ["config", "dummy_inputs"]}
     prepared_model = torch_prepare_fn(traced, qconfig_dict, prepare_custom_config_dict)

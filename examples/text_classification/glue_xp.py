@@ -22,8 +22,8 @@ from pathlib import Path
 import random
 import numpy as np
 import copy
-
-from datasets import load_metric, load_dataset
+from evaluate import load as load_metric
+from datasets import  load_dataset
 from transformers import (
     AutoModelForSequenceClassification,
     EvalPrediction,
@@ -297,9 +297,11 @@ class GlueXP(XP):
         datasets = datasets.map(
             preprocess_function,
             batched=True,
-            load_from_cache_file=not data_args.overwrite_cache,
-            cache_file_names = cache_file_names
+            # load_from_cache_file=not data_args.overwrite_cache,
+            # cache_file_names = cache_file_names
         )
+        # import IPython
+        # IPython.embed()
         self.datasets = datasets
 
         self.train_dataset = datasets["train"]

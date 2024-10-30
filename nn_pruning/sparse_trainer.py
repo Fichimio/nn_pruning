@@ -95,6 +95,9 @@ class SparseTrainer:
 
         Subclass and override for custom behavior.
         """
+        # print(inputs)
+        # import IPython
+        # IPython.embed()
         outputs = model(**inputs)
 
         # Save past state if it exists
@@ -103,8 +106,11 @@ class SparseTrainer:
             self._past = outputs[self.args.past_index]
 
         # We don't use .loss here since the model may return tuples instead of ModelOutput.
+        # print(inputs)
+        # print(model)
+        # print(outputs)
         loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
-
+        # print(loss)
         self.metrics["ce_loss"] += float(loss)
         loss, distil_loss = self.patch_coordinator.distil_loss_combine(loss, inputs, outputs)
         self.metrics["distil_loss"] += float(distil_loss)

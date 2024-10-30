@@ -21,19 +21,19 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-
-from datasets import load_metric, load_dataset
+from evaluate import load as load_metric
+from datasets import load_dataset
 from transformers import (
     AutoModelForQuestionAnswering,
     DataCollatorWithPadding,
     EvalPrediction,
     default_data_collator,
 )
-
 from nn_pruning.hp_naming import TrialShortNamer
 
 from .qa_train import QATrainer
-from .qa_utils import postprocess_qa_predictions
+from .qa_utils import postprocess_qa_predictions,replace_conv1d_with_linear
+from .qa_qwen2 import Qwen2ForQuestionAnswering
 from examples.xp import XP, DataTrainingArguments, ModelArguments, XPTrainingArguments
 import json
 
@@ -82,12 +82,29 @@ class QAXP(XP):
 
     @classmethod
     def _model_init(cls, model_args, model_config, data_args):
-        model = AutoModelForQuestionAnswering.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=model_config,
-            cache_dir=model_args.cache_dir,
-        )
+        try:
+            model = AutoModelForQuestionAnswering.from_pretrained(
+                model_args.model_name_or_path,
+                from_tf=bool(".ckpt" in model_args.model_name_or_path),
+                config=model_config,
+                cache_dir=model_args.cache_dir,
+                ignore_mismatched_sizes=True
+            )
+        except Exception as e:
+            try:
+                model = Qwen2ForQuestionAnswering.from_pretrained(
+                    model_args.model_name_or_path,
+                    from_tf=bool(".ckpt" in model_args.model_name_or_path),
+                    config=model_config,
+                    cache_dir=model_args.cache_dir,
+                    ignore_mismatched_sizes=True
+                )
+            except Exception as e:
+                raise e
+            
+        from transformers.models.gpt2 import GPT2ForQuestionAnswering
+        if isinstance(model,GPT2ForQuestionAnswering):
+            replace_conv1d_with_linear(model)
         return model
 
     # Validation preprocessing
@@ -149,6 +166,10 @@ class QAXP(XP):
         # Tokenize our examples with truncation and maybe padding, but keep the overflows using a stride. This results
         # in one example possible giving several features when a context is long, each of those features having a
         # context that overlaps a bit the context of the previous feature.
+        # print(data_args.max_seq_length)
+        # print(data_args.doc_stride)
+        examples[question_column_name] = [ q.strip() for q in examples[question_column_name]]
+        examples[context_column_name] = [ c.strip() for c in examples[context_column_name]]
         tokenized_examples = self.tokenizer(
             examples[question_column_name if pad_on_right else context_column_name],
             examples[context_column_name if pad_on_right else question_column_name],
@@ -159,7 +180,8 @@ class QAXP(XP):
             return_offsets_mapping=True,
             padding="max_length" if data_args.pad_to_max_length else False,
         )
-
+        
+        
         # Since one example might give us several features if it has a long context, we need a map from a feature to
         # its corresponding example. This key gives us just that.
         sample_mapping = tokenized_examples.pop("overflow_to_sample_mapping")
@@ -173,8 +195,8 @@ class QAXP(XP):
 
         for i, offsets in enumerate(offset_mapping):
             # We will label impossible answers with the index of the CLS token.
-            input_ids = tokenized_examples["input_ids"][i]
-            cls_index = input_ids.index(self.tokenizer.cls_token_id)
+            input_ids = tokenized_examples["input_ids"][i]       
+            cls_index = input_ids.index(self.tokenizer.cls_token_id) if self.tokenizer.cls_token_id is not None else 0
 
             # Grab the sequence corresponding to that example (to know what is the context and what is the question).
             sequence_ids = tokenized_examples.sequence_ids(i)
@@ -240,7 +262,9 @@ class QAXP(XP):
         # Padding side determines if we do (question|context) or (context|question).
         pad_on_right = self.tokenizer.padding_side == "right"
         self.pad_on_right = pad_on_right
-
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        
         if self.training_args.do_train:
             self.train_dataset = self.datasets["train"].map(
                 self._prepare_train_features,
